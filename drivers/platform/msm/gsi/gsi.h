@@ -33,7 +33,7 @@
 #define GSI_NO_EVT_ERINDEX 31
 
 #define gsi_readl(c)	(readl(c))
-#define gsi_writel(v, c)	({ __iowmb(); writel_relaxed((v), (c)); })
+#define gsi_writel(v, c)	(writel((v), (c)))
 
 #define GSI_IPC_LOGGING(buf, fmt, args...) \
 	do { \
@@ -347,7 +347,9 @@ enum gsi_generic_ee_cmd_return_code {
 };
 
 extern struct gsi_ctx *gsi_ctx;
+#ifdef CONFIG_GSI_DEBUG
 void gsi_debugfs_init(void);
+#endif
 uint16_t gsi_find_idx_from_addr(struct gsi_ring_ctx *ctx, uint64_t addr);
 void gsi_update_ch_dp_stats(struct gsi_chan_ctx *ctx, uint16_t used);
 

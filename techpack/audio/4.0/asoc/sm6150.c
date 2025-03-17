@@ -5821,6 +5821,7 @@ static struct snd_soc_ops sm6150_tdm_be_ops = {
 
 static int msm_fe_qos_prepare(struct snd_pcm_substream *substream)
 {
+	return 0;
 	cpumask_t mask;
 
 	if (pm_qos_request_active(&substream->latency_pm_qos_req))
@@ -5829,14 +5830,13 @@ static int msm_fe_qos_prepare(struct snd_pcm_substream *substream)
 	cpumask_clear(&mask);
 	cpumask_set_cpu(1, &mask); /* affine to core 1 */
 	cpumask_set_cpu(2, &mask); /* affine to core 2 */
-	cpumask_copy(&substream->latency_pm_qos_req.cpus_affine, &mask);
+    substream->latency_pm_qos_req.cpus_affine = *cpumask_bits(&mask);
 
 	substream->latency_pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
 
 	pm_qos_add_request(&substream->latency_pm_qos_req,
 			  PM_QOS_CPU_DMA_LATENCY,
 			  MSM_LL_QOS_VALUE);
-	return 0;
 }
 
 static struct snd_soc_ops msm_fe_qos_ops = {

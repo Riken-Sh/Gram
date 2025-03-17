@@ -198,7 +198,7 @@ int msm_comm_vote_bus(struct msm_vidc_core *core)
 	int rc = 0, vote_data_count = 0, i = 0;
 	struct hfi_device *hdev;
 	struct msm_vidc_inst *inst = NULL;
-	struct vidc_bus_vote_data *vote_data = NULL;
+	struct vidc_bus_vote_data vote_data[MAX_SUPPORTED_INSTANCES] __aligned(8);
 	bool is_turbo = false;
 
 	if (!core || !core->device) {
@@ -207,19 +207,7 @@ int msm_comm_vote_bus(struct msm_vidc_core *core)
 	}
 	hdev = core->device;
 
-	vote_data = kzalloc(sizeof(struct vidc_bus_vote_data) *
-			MAX_SUPPORTED_INSTANCES, GFP_ATOMIC);
-	if (!vote_data) {
-		dprintk(VIDC_DBG,
-			"vote_data allocation with GFP_ATOMIC failed\n");
-		vote_data = kzalloc(sizeof(struct vidc_bus_vote_data) *
-			MAX_SUPPORTED_INSTANCES, GFP_KERNEL);
-		if (!vote_data) {
-			dprintk(VIDC_DBG,
-				"vote_data allocation failed\n");
-			return -EINVAL;
-		}
-	}
+	memset(vote_data, 0, sizeof(struct vidc_bus_vote_data));
 
 	mutex_lock(&core->lock);
 	list_for_each_entry(inst, &core->instances, list) {
@@ -307,13 +295,6 @@ int msm_comm_vote_bus(struct msm_vidc_core *core)
 				filled_len * vote_data[i].fps * 8;
 		}
 
-		vote_data[i].power_mode = 0;
-		if (inst->clk_data.buffer_counter < DCVS_FTB_WINDOW &&
-			inst->session_type != MSM_VIDC_CVP)
-			vote_data[i].power_mode = VIDC_POWER_TURBO;
-		if (msm_vidc_clock_voting || is_turbo)
-			vote_data[i].power_mode = VIDC_POWER_TURBO;
-
 		if (msm_comm_get_stream_output_mode(inst) ==
 				HAL_VIDEO_DECODER_PRIMARY) {
 			vote_data[i].color_formats[0] =
@@ -350,7 +331,6 @@ int msm_comm_vote_bus(struct msm_vidc_core *core)
 		rc = call_hfi_op(hdev, vote_bus, hdev->hfi_device_data,
 			vote_data, vote_data_count);
 
-	kfree(vote_data);
 	return rc;
 }
 
@@ -1452,7 +1432,11 @@ static inline int msm_vidc_power_save_mode_enable(struct msm_vidc_inst *inst,
 	struct hfi_device *hdev = NULL;
 	enum hal_perf_mode venc_mode;
 	u32 rc_mode = 0;
+	u32 hq_mbs_per_sec = 0;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *instance = NULL;
 
+	core = inst->core;
 	hdev = inst->core->device;
 	if (inst->session_type != MSM_VIDC_ENCODER) {
 		dprintk(VIDC_DBG,
@@ -1466,6 +1450,19 @@ static inline int msm_vidc_power_save_mode_enable(struct msm_vidc_inst *inst,
 	if (mbs_per_frame > inst->core->resources.max_hq_mbs_per_frame ||
 		mbs_per_sec > inst->core->resources.max_hq_mbs_per_sec) {
 		enable = true;
+	}
+	if (!enable) {
+		mutex_lock(&core->lock);
+		list_for_each_entry(instance, &core->instances, list) {
+			if (instance->clk_data.core_id &&
+				!(instance->flags & VIDC_LOW_POWER))
+				hq_mbs_per_sec +=
+					msm_comm_get_inst_load_per_core(
+					instance, LOAD_CALC_NO_QUIRKS);
+		}
+		mutex_unlock(&core->lock);
+		if (hq_mbs_per_sec > inst->core->resources.max_hq_mbs_per_sec)
+			enable = true;
 	}
 	/* Power saving always disabled for CQ RC mode. */
 	rc_mode = msm_comm_g_ctrl_for_id(inst,

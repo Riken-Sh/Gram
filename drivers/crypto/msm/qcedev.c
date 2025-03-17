@@ -44,20 +44,19 @@
 #define CACHE_LINE_SIZE 32
 #define CE_SHA_BLOCK_SIZE SHA256_BLOCK_SIZE
 
-static uint8_t  _std_init_vector_sha1_uint8[] =   {
+static const uint8_t _std_init_vector_sha1_uint8[] =   {
 	0x67, 0x45, 0x23, 0x01, 0xEF, 0xCD, 0xAB, 0x89,
 	0x98, 0xBA, 0xDC, 0xFE, 0x10, 0x32, 0x54, 0x76,
 	0xC3, 0xD2, 0xE1, 0xF0
 };
 /* standard initialization vector for SHA-256, source: FIPS 180-2 */
-static uint8_t _std_init_vector_sha256_uint8[] = {
+static const uint8_t _std_init_vector_sha256_uint8[] = {
 	0x6A, 0x09, 0xE6, 0x67, 0xBB, 0x67, 0xAE, 0x85,
 	0x3C, 0x6E, 0xF3, 0x72, 0xA5, 0x4F, 0xF5, 0x3A,
 	0x51, 0x0E, 0x52, 0x7F, 0x9B, 0x05, 0x68, 0x8C,
 	0x1F, 0x83, 0xD9, 0xAB, 0x5B, 0xE0, 0xCD, 0x19
 };
 
-static DEFINE_MUTEX(send_cmd_lock);
 static DEFINE_MUTEX(qcedev_sent_bw_req);
 static DEFINE_MUTEX(hash_access_lock);
 
@@ -2227,6 +2226,7 @@ static struct platform_driver qcedev_plat_driver = {
 		.name = "qce",
 		.owner = THIS_MODULE,
 		.of_match_table = qcedev_match,
+		.probe_type = PROBE_FORCE_SYNCHRONOUS,
 	},
 };
 
@@ -2322,11 +2322,7 @@ err:
 
 static int qcedev_init(void)
 {
-	int rc;
-
-	rc = _qcedev_debug_init();
-	if (rc)
-		return rc;
+	_qcedev_debug_init();
 	return platform_driver_register(&qcedev_plat_driver);
 }
 

@@ -797,16 +797,6 @@ static void rcu_eqs_enter_common(bool user)
 	__this_cpu_dec(disable_rcu_irq_enter);
 	rcu_dynticks_task_enter();
 
-	/*
-	 * It is illegal to enter an extended quiescent state while
-	 * in an RCU read-side critical section.
-	 */
-	RCU_LOCKDEP_WARN(lock_is_held(&rcu_lock_map),
-			 "Illegal idle entry in RCU read-side critical section.");
-	RCU_LOCKDEP_WARN(lock_is_held(&rcu_bh_lock_map),
-			 "Illegal idle entry in RCU-bh read-side critical section.");
-	RCU_LOCKDEP_WARN(lock_is_held(&rcu_sched_lock_map),
-			 "Illegal idle entry in RCU-sched read-side critical section.");
 }
 
 /*
@@ -1805,7 +1795,7 @@ static int rcu_future_gp_cleanup(struct rcu_state *rsp, struct rcu_node *rnp)
 static void rcu_gp_kthread_wake(struct rcu_state *rsp)
 {
 	if ((current == rsp->gp_kthread &&
-	     !in_interrupt() && !in_serving_softirq()) ||
+	     !in_irq() && !in_serving_softirq()) ||
 	    !READ_ONCE(rsp->gp_flags) ||
 	    !rsp->gp_kthread)
 		return;
@@ -2526,11 +2516,11 @@ rcu_report_qs_rdp(int cpu, struct rcu_state *rsp, struct rcu_data *rdp)
 		return;
 	}
 	mask = rdp->grpmask;
+	rdp->core_needs_qs = false;
 	if ((rnp->qsmask & mask) == 0) {
+		rdp->core_needs_qs = false;
 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 	} else {
-		rdp->core_needs_qs = false;
-
 		/*
 		 * This GP can't end until cpu checks in, so all of our
 		 * callbacks can be processed during the next GP.
@@ -4224,7 +4214,7 @@ void __init rcu_init(void)
 	}
 
 	/* Create workqueue for expedited GPs and for Tree SRCU. */
-	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_MEM_RECLAIM, 0);
+	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_MEM_RECLAIM | WQ_UNBOUND, 0);
 	WARN_ON(!rcu_gp_wq);
 }
 

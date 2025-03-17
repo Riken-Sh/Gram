@@ -23,7 +23,6 @@
 #include <linux/virtio.h>
 #include <linux/virtio_net.h>
 #include <linux/bpf.h>
-#include <linux/bpf_trace.h>
 #include <linux/scatterlist.h>
 #include <linux/if_vlan.h>
 #include <linux/slab.h>
@@ -386,7 +385,7 @@ static struct sk_buff *page_to_skb(struct virtnet_info *vi,
 	return skb;
 }
 
-static bool virtnet_xdp_xmit(struct virtnet_info *vi,
+static void virtnet_xdp_xmit(struct virtnet_info *vi,
 			     struct receive_queue *rq,
 			     struct xdp_buff *xdp)
 {
@@ -419,11 +418,10 @@ static bool virtnet_xdp_xmit(struct virtnet_info *vi,
 		struct page *page = virt_to_head_page(xdp->data);
 
 		put_page(page);
-		return false;
+		return;
 	}
 
 	virtqueue_kick(sq->vq);
-	return true;
 }
 
 static unsigned int virtnet_get_headroom(struct virtnet_info *vi)
@@ -452,8 +450,13 @@ static struct page *xdp_linearize_page(struct receive_queue *rq,
 				       int page_off,
 				       unsigned int *len)
 {
-	struct page *page = alloc_page(GFP_ATOMIC);
+	int tailroom = SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
+	struct page *page;
 
+	if (page_off + *len + tailroom > PAGE_SIZE)
+		return NULL;
+
+	page = alloc_page(GFP_ATOMIC);
 	if (!page)
 		return NULL;
 
@@ -556,14 +559,12 @@ static struct sk_buff *receive_small(struct net_device *dev,
 			delta = orig_data - xdp.data;
 			break;
 		case XDP_TX:
-			if (unlikely(!virtnet_xdp_xmit(vi, rq, &xdp)))
-				trace_xdp_exception(vi->dev, xdp_prog, act);
+			virtnet_xdp_xmit(vi, rq, &xdp);
 			rcu_read_unlock();
 			goto xdp_xmit;
 		default:
 			bpf_warn_invalid_xdp_action(act);
 		case XDP_ABORTED:
-			trace_xdp_exception(vi->dev, xdp_prog, act);
 		case XDP_DROP:
 			goto err_xdp;
 		}
@@ -692,8 +693,7 @@ static struct sk_buff *receive_mergeable(struct net_device *dev,
 			}
 			break;
 		case XDP_TX:
-			if (unlikely(!virtnet_xdp_xmit(vi, rq, &xdp)))
-				trace_xdp_exception(vi->dev, xdp_prog, act);
+			virtnet_xdp_xmit(vi, rq, &xdp);
 			ewma_pkt_len_add(&rq->mrg_avg_pkt_len, len);
 			if (unlikely(xdp_page != page))
 				put_page(page);
@@ -702,7 +702,6 @@ static struct sk_buff *receive_mergeable(struct net_device *dev,
 		default:
 			bpf_warn_invalid_xdp_action(act);
 		case XDP_ABORTED:
-			trace_xdp_exception(vi->dev, xdp_prog, act);
 		case XDP_DROP:
 			if (unlikely(xdp_page != page))
 				__free_pages(xdp_page, 0);

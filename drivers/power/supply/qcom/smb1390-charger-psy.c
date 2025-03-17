@@ -122,7 +122,7 @@
 #define smb1390_dbg(chip, reason, fmt, ...)				\
 	do {								\
 		if (chip->debug_mask & (reason))			\
-			pr_info("SMB1390: %s: " fmt, __func__,		\
+			pr_debug("SMB1390: %s: " fmt, __func__,		\
 				##__VA_ARGS__);				\
 		else							\
 			pr_debug("SMB1390: %s: " fmt, __func__,		\
@@ -2026,7 +2026,7 @@ static int smb1390_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, chip);
-	chip->cp_role = (int)of_device_get_match_data(chip->dev);
+	chip->cp_role = (uintptr_t)of_device_get_match_data(chip->dev);
 	switch (chip->cp_role) {
 	case CP_MASTER:
 		rc = smb1390_master_probe(chip);
@@ -2047,7 +2047,7 @@ static int smb1390_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
-	pr_info("smb1390 %s probed successfully\n", chip->cp_role ? "Slave" :
+	pr_debug("smb1390 %s probed successfully\n", chip->cp_role ? "Slave" :
 		"Master");
 	return 0;
 

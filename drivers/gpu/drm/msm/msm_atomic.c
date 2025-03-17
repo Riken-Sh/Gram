@@ -18,6 +18,7 @@
 
 #include <linux/msm_drm_notify.h>
 #include <linux/notifier.h>
+#include <linux/pm_qos.h>
 
 #include "msm_drv.h"
 #include "msm_kms.h"
@@ -73,11 +74,22 @@ EXPORT_SYMBOL(msm_drm_unregister_client);
  * @v: notifier data, inculde display id and display blank
  *     event(unblank or power down).
  */
+static bool notifier_enabled __read_mostly = true;
 static int msm_drm_notifier_call_chain(unsigned long val, void *v)
 {
+	if (unlikely(!notifier_enabled))
+		return 0;
+
 	return blocking_notifier_call_chain(&msm_drm_notifier_list, val,
 					    v);
 }
+
+void msm_drm_notifier_enable(bool val)
+{
+	notifier_enabled = val;
+	mb();
+}
+EXPORT_SYMBOL(msm_drm_notifier_enable);
 
 /* block until specified crtcs are no longer pending update, and
  * atomically mark them as pending update
@@ -611,6 +623,10 @@ static void complete_commit(struct msm_commit *c)
 static void _msm_drm_commit_work_cb(struct kthread_work *work)
 {
 	struct msm_commit *commit =  NULL;
+    struct pm_qos_request req = {
+		.type = PM_QOS_REQ_AFFINE_CORES,
+		.cpus_affine = BIT(raw_smp_processor_id())
+	};
 
 	if (!work) {
 		DRM_ERROR("%s: Invalid commit work data!\n", __func__);
@@ -619,9 +635,14 @@ static void _msm_drm_commit_work_cb(struct kthread_work *work)
 
 	commit = container_of(work, struct msm_commit, commit_work);
 
-	SDE_ATRACE_BEGIN("complete_commit");
+	/*
+	 * Optimistically assume the current task won't migrate to another CPU
+	 * and restrict the current CPU to shallow idle states so that it won't
+	 * take too long to resume after waiting for the prior commit to finish.
+	 */
+	pm_qos_add_request(&req, PM_QOS_CPU_DMA_LATENCY, 100);
 	complete_commit(commit);
-	SDE_ATRACE_END("complete_commit");
+	pm_qos_remove_request(&req);
 }
 
 static struct msm_commit *commit_init(struct drm_atomic_state *state,
@@ -771,6 +792,10 @@ int msm_atomic_commit(struct drm_device *dev,
 		goto err_free;
 
 	BUG_ON(drm_atomic_helper_swap_state(state, false) < 0);
+
+	if (!atomic_cmpxchg_acquire(&priv->pm_req_set, 1, 0))
+		pm_qos_update_request(&priv->pm_irq_req, 100);
+	mod_delayed_work(system_unbound_wq, &priv->pm_unreq_dwork, HZ / 10);
 
 	/*
 	 * This is the point of no return - everything below never fails except

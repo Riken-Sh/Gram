@@ -473,8 +473,12 @@ static void handle_alloc_generic_req(struct qmi_handle *handle,
 		return;
 	}
 
-	if (!memblock[client_id].allotted) {
-		if (memblock[client_id].guard_band && alloc_req->num_bytes > 0)
+	if (!memblock[client_id].allotted && alloc_req->num_bytes > 0) {
+
+		if (alloc_req->num_bytes > memblock[client_id].init_size)
+			alloc_req->num_bytes = memblock[client_id].init_size;
+
+		if (memblock[client_id].guard_band)
 			size = alloc_req->num_bytes + MEMSHARE_GUARD_BYTES;
 		else
 			size = alloc_req->num_bytes;
@@ -641,9 +645,9 @@ static void handle_query_size_req(struct qmi_handle *handle,
 		return;
 	}
 
-	if (memblock[client_id].size) {
+	if (memblock[client_id].init_size) {
 		query_resp->size_valid = 1;
-		query_resp->size = memblock[client_id].size;
+		query_resp->size = memblock[client_id].init_size;
 	} else {
 		query_resp->size_valid = 1;
 		query_resp->size = 0;
@@ -824,7 +828,7 @@ static int memshare_child_probe(struct platform_device *pdev)
 	else if (strcmp(name, "wcnss") == 0)
 		memblock[num_clients].peripheral = DHMS_MEM_PROC_WCNSS_V01;
 
-	memblock[num_clients].size = size;
+	memblock[num_clients].init_size = size;
 	memblock[num_clients].client_id = client_id;
 
   /*
@@ -842,6 +846,7 @@ static int memshare_child_probe(struct platform_device *pdev)
 				rc);
 			return rc;
 		}
+		memblock[num_clients].size = size;
 		memblock[num_clients].allotted = 1;
 		shared_hyp_mapping(num_clients);
 	}

@@ -167,7 +167,7 @@ ifneq ($(CONFIG_MOBILE_ROUTER), y)
 CONFIG_QCOM_TDLS := y
 
 CONFIG_WLAN_SYSFS := y
-CONFIG_WLAN_POWER_DEBUG := y
+CONFIG_WLAN_POWER_DEBUG := n
 
 #Disable Beacon Reception Stats
 CONFIG_FEATURE_BECN_STATS := n
@@ -181,7 +181,7 @@ CONFIG_QCACLD_FEATURE_GREEN_AP := y
 CONFIG_QCACLD_FEATURE_APF := y
 
 #Flag to enable SARv1 -> SARv2 conversion
-CONFIG_WLAN_FEATURE_SARV1_TO_SARV2 := n
+CONFIG_WLAN_FEATURE_SARV1_TO_SARV2 := y
 
 #Flag to enable get firmware state
 CONFIG_QCACLD_FEATURE_FW_STATE := y
@@ -367,7 +367,7 @@ ifeq ($(CONFIG_ICNSS), y)
 CONFIG_WIFI_3_0_ADRASTEA := y
 CONFIG_ADRASTEA_RRI_ON_DDR := y
 # Enable athdiag procfs debug support for adrastea
-CONFIG_ATH_PROCFS_DIAG_SUPPORT := y
+CONFIG_ATH_PROCFS_DIAG_SUPPORT := n
 # Enable 11AC TX compact feature for adrastea
 CONFIG_ATH_11AC_TXCOMPACT := y
 ifeq ($(CONFIG_QMI_SUPPORT), y)
@@ -486,7 +486,7 @@ endif
 #ifeq ($(CONFIG_DEBUG_FS), y)
        # Flag to enable debugfs. Depends on CONFIG_DEBUG_FS in kernel
        # configuration.
-       # CONFIG_WLAN_DEBUGFS := y
+       # CONFIG_WLAN_DEBUGFS := n
 
        # Flag to enable streamfs. Depends on CONFIG_DEBUG_FS and
        # CONFIG_RELAY in kernel configuration.
@@ -783,7 +783,7 @@ CONFIG_WLAN_LOGGING_BUFFERS_DYNAMICALLY := n
 CONFIG_WLAN_DFS_STATIC_MEM_ALLOC := y
 
 #Flag to enable HTC credit history feature
-CONFIG_FEATURE_HTC_CREDIT_HISTORY := y
+CONFIG_FEATURE_HTC_CREDIT_HISTORY := n
 
 #Flag to enable MTRACE feature
 CONFIG_TRACE_RECORD_FEATURE := n
@@ -804,7 +804,7 @@ CONFIG_WLAN_WEXT_SUPPORT_ENABLE := y
 CONFIG_ENABLE_MTRACE_LOG := n
 
 #Flag to enable nud tracking feature
-CONFIG_WLAN_NUD_TRACKING := n
+CONFIG_WLAN_NUD_TRACKING := y
 
 #Flag to enable/Disable Function call trace
 CONFIG_FUNC_CALL_MAP := n
@@ -841,7 +841,7 @@ ifneq ($(CONFIG_WIFI_POS_CONVERGED), y)
 CONFIG_WIFI_POS_LEGACY := y
 endif
 
-CONFIG_CP_STATS := y
+CONFIG_CP_STATS := n
 CONFIG_FEATURE_INTEROP_ISSUES_AP := y
 
 CONFIG_FEATURE_WLAN_WAPI := y
@@ -910,7 +910,7 @@ CONFIG_DP_TRACE := n
 
 ifeq ($(CONFIG_HELIUMPLUS), y)
 ifneq ($(CONFIG_FORCE_ALLOC_FROM_DMA_ZONE), y)
-CONFIG_ENABLE_DEBUG_ADDRESS_MARKING := y
+CONFIG_ENABLE_DEBUG_ADDRESS_MARKING := n
 endif
 CONFIG_RX_OL := y
 endif
@@ -1035,8 +1035,8 @@ ifeq ($(CONFIG_CNSS_QCA6490), y)
 
 #Enable 6 GHz Band
 CONFIG_BAND_6GHZ := n
-CONFIG_RX_FISA := y
-CONFIG_MORE_TX_DESC := y
+CONFIG_RX_FISA := n
+CONFIG_MORE_TX_DESC := n
 
 endif
 
@@ -1063,3 +1063,8 @@ CONFIG_FEATURE_GPIO_CFG := y
 
 #Enable VDEV Response wakelock feature
 CONFIG_FEATURE_VDEV_RSP_WAKELOCK := y
+
+CONFIG_ENABLE_SIZE_OPTIMIZE := y
+
+# Disable DFS channels on AP mode to avoid DFS CAC
+CONFIG_FEATURE_WLAN_STA_AP_MODE_DFS_DISABLE := y

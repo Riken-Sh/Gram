@@ -26,7 +26,6 @@
 
 #include <linux/prefetch.h>
 #include <net/busy_poll.h>
-#include <linux/bpf_trace.h>
 #include "i40e.h"
 #include "i40e_trace.h"
 #include "i40e_prototype.h"
@@ -2018,8 +2017,6 @@ static struct sk_buff *i40e_run_xdp(struct i40e_ring *rx_ring,
 	default:
 		bpf_warn_invalid_xdp_action(act);
 	case XDP_ABORTED:
-		trace_xdp_exception(rx_ring->netdev, xdp_prog, act);
-		/* fallthrough -- handle aborts by dropping packet */
 	case XDP_DROP:
 		result = I40E_XDP_CONSUMED;
 		break;
@@ -2401,7 +2398,7 @@ tx_only:
 		return budget;
 	}
 
-	if (vsi->back->flags & I40E_TXR_FLAGS_WB_ON_ITR)
+	if (q_vector->tx.ring[0].flags & I40E_TXR_FLAGS_WB_ON_ITR)
 		q_vector->arm_wb_state = false;
 
 	/* Work is done so exit the polling mode and re-enable the interrupt */

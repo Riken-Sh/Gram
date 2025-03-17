@@ -608,9 +608,13 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 	tag_data.index = b->index;
 	tag_data.type = b->type;
 
-	msm_comm_fetch_tags(inst, &tag_data);
-	b->m.planes[0].reserved[5] = tag_data.input_tag;
-	b->m.planes[0].reserved[6] = tag_data.output_tag;
+	if (msm_comm_fetch_tags(inst, &tag_data)) {
+		b->m.planes[0].reserved[5] = tag_data.input_tag;
+		b->m.planes[0].reserved[6] = tag_data.output_tag;
+	} else {
+		b->m.planes[0].reserved[5] = 0;
+		b->m.planes[0].reserved[6] = 0;
+	}
 
 	return rc;
 }
@@ -1083,6 +1087,7 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct hfi_device *hdev;
 	struct hal_buffer_size_minimum b;
+	struct hal_buffer_requirements *bufreq;
 	u32 rc_mode;
 	int value = 0;
 
@@ -1189,6 +1194,27 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 		dprintk(VIDC_ERR,
 			"This session has mis-match buffer counts%pK\n", inst);
 		goto fail_start;
+	}
+
+	if (inst->session_type == MSM_VIDC_DECODER &&
+		msm_comm_get_stream_output_mode(inst) ==
+			HAL_VIDEO_DECODER_SECONDARY) {
+		bufreq = get_buff_req_buffer(inst,
+			HAL_BUFFER_OUTPUT);
+		if (!bufreq) {
+			dprintk(VIDC_ERR, "Buffer requirements failed\n");
+			goto fail_start;
+		}
+		/* For DPB buffers, Always use min count */
+		rc = msm_comm_set_buffer_count(inst,
+			bufreq->buffer_count_min,
+			bufreq->buffer_count_min,
+			HAL_BUFFER_OUTPUT);
+		if (rc) {
+			dprintk(VIDC_ERR,
+			"failed to set buffer count\n");
+			goto fail_start;
+		}
 	}
 
 	rc = msm_comm_set_scratch_buffers(inst);
@@ -1868,7 +1894,7 @@ void *msm_vidc_open(int core_id, int session_type)
 		goto err_invalid_core;
 	}
 
-	pr_info(VIDC_DBG_TAG "Opening video instance: %pK, %d\n",
+	pr_debug(VIDC_DBG_TAG "Opening video instance: %pK, %d\n",
 		"info", inst, session_type);
 	mutex_init(&inst->sync_lock);
 	mutex_init(&inst->bufq[CAPTURE_PORT].lock);
@@ -1965,8 +1991,10 @@ void *msm_vidc_open(int core_id, int session_type)
 
 	msm_comm_scale_clocks_and_bus(inst);
 
+#ifdef CONFIG_DEBUG_FS
 	inst->debugfs_root =
 		msm_vidc_debugfs_init_inst(inst, core->debugfs_root);
+#endif
 
 	if (inst->session_type == MSM_VIDC_CVP) {
 		rc = msm_comm_try_state(inst, MSM_VIDC_OPEN_DONE);
@@ -2154,7 +2182,7 @@ int msm_vidc_destroy(struct msm_vidc_inst *inst)
 
 	msm_vidc_debugfs_deinit_inst(inst);
 
-	pr_info(VIDC_DBG_TAG "Closed video instance: %pK\n",
+	pr_debug(VIDC_DBG_TAG "Closed video instance: %pK\n",
 			"info", inst);
 	kfree(inst);
 	return 0;

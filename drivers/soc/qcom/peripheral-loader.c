@@ -1247,7 +1247,11 @@ int pil_boot(struct pil_desc *desc)
 	/* Reinitialize for new image */
 	pil_release_mmap(desc);
 
-	down_read(&pil_pm_rwsem);
+	if (!down_read_trylock(&pil_pm_rwsem)) {
+		pil_info(desc, "Aborting suspend to load image\n");
+		pm_system_wakeup();
+		down_read(&pil_pm_rwsem);
+	}
 	snprintf(fw_name, sizeof(fw_name), "%s.mdt", desc->fw_name);
 	ret = request_firmware(&fw, fw_name, desc->dev);
 	if (ret) {
@@ -1700,7 +1704,7 @@ static int __init msm_pil_init(void)
 
 	pil_ipc_log = ipc_log_context_create(2, "PIL-IPC", 0);
 	if (!pil_ipc_log)
-		pr_warn("Failed to setup PIL ipc logging\n");
+		pr_debug("Failed to setup PIL ipc logging\n");
 out:
 	return register_pm_notifier(&pil_pm_notifier);
 }

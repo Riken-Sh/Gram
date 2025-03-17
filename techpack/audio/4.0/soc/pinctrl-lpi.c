@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/gpio.h>
@@ -259,12 +260,14 @@ static int lpi_gpio_set_mux(struct pinctrl_dev *pctldev, unsigned int function,
 
 	pad = pctldev->desc->pins[pin].drv_data;
 
-	pad->function = function;
+    if (pad != NULL) {
+	    pad->function = function;
 
-	val = lpi_gpio_read(pad, LPI_GPIO_REG_VAL_CTL);
-	val &= ~(LPI_GPIO_REG_FUNCTION_MASK);
-	val |= pad->function << LPI_GPIO_REG_FUNCTION_SHIFT;
-	lpi_gpio_write(pad, LPI_GPIO_REG_VAL_CTL, val);
+	    val = lpi_gpio_read(pad, LPI_GPIO_REG_VAL_CTL);
+	    val &= ~(LPI_GPIO_REG_FUNCTION_MASK);
+	    val |= pad->function << LPI_GPIO_REG_FUNCTION_SHIFT;
+	    lpi_gpio_write(pad, LPI_GPIO_REG_VAL_CTL, val);
+	}
 	return 0;
 }
 
@@ -497,6 +500,7 @@ int lpi_pinctrl_suspend(struct device *dev)
 {
 	int ret = 0;
 
+	trace_printk("%s: system suspend\n",  __func__);
 	dev_dbg(dev, "%s: system suspend\n", __func__);
 
 	if ((!pm_runtime_enabled(dev) || !pm_runtime_suspended(dev))) {
@@ -533,6 +537,7 @@ static struct notifier_block service_nb = {
 
 static void lpi_pinctrl_ssr_disable(struct device *dev, void *data)
 {
+	trace_printk("%s: enter\n", __func__);
 	lpi_dev_up = false;
 	lpi_pinctrl_suspend(dev);
 }

@@ -516,7 +516,7 @@ static int msm_gpio_direction_output(struct gpio_chip *chip, unsigned offset, in
 
 	val = readl_relaxed(base + g->ctl_reg);
 	val |= BIT(g->oe_bit);
-	writel_relaxed(val, base + g->ctl_reg);
+	writel(val, base + g->ctl_reg);
 
 	raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 
@@ -672,11 +672,11 @@ static void msm_gpio_update_dual_edge_pos(struct msm_pinctrl *pctrl,
 
 	base = reassign_pctrl_reg(pctrl->soc, d->hwirq);
 	do {
-		val = readl_relaxed(base + g->io_reg) & BIT(g->in_bit);
+		val = readl(base + g->io_reg) & BIT(g->in_bit);
 
 		pol = readl_relaxed(base + g->intr_cfg_reg);
 		pol ^= BIT(g->intr_polarity_bit);
-		writel_relaxed(pol, base + g->intr_cfg_reg);
+		writel(pol, base + g->intr_cfg_reg);
 
 		val2 = readl_relaxed(base + g->io_reg) & BIT(g->in_bit);
 		intstat = readl_relaxed(base + g->intr_status_reg);
@@ -702,6 +702,29 @@ static void msm_gpio_irq_mask(struct irq_data *d)
 	raw_spin_lock_irqsave(&pctrl->lock, flags);
 
 	val = readl_relaxed(base + g->intr_cfg_reg);
+	/*
+	 * There are two bits that control interrupt forwarding to the CPU. The
+	 * RAW_STATUS_EN bit causes the level or edge sensed on the line to be
+	 * latched into the interrupt status register when the hardware detects
+	 * an irq that it's configured for (either edge for edge type or level
+	 * for level type irq). The 'non-raw' status enable bit causes the
+	 * hardware to assert the summary interrupt to the CPU if the latched
+	 * status bit is set. There's a bug though, the edge detection logic
+	 * seems to have a problem where toggling the RAW_STATUS_EN bit may
+	 * cause the status bit to latch spuriously when there isn't any edge
+	 * so we can't touch that bit for edge type irqs and we have to keep
+	 * the bit set anyway so that edges are latched while the line is masked.
+	 *
+	 * To make matters more complicated, leaving the RAW_STATUS_EN bit
+	 * enabled all the time causes level interrupts to re-latch into the
+	 * status register because the level is still present on the line after
+	 * we ack it. We clear the raw status enable bit during mask here and
+	 * set the bit on unmask so the interrupt can't latch into the hardware
+	 * while it's masked.
+	 */
+	if (irqd_get_trigger_type(d) & IRQ_TYPE_LEVEL_MASK)
+		val &= ~BIT(g->intr_raw_status_bit);
+
 	val &= ~BIT(g->intr_enable_bit);
 	writel_relaxed(val, base + g->intr_cfg_reg);
 
@@ -736,7 +759,7 @@ static void msm_gpio_irq_enable(struct irq_data *d)
 
 	val = readl_relaxed(base + g->intr_cfg_reg);
 	val |= BIT(g->intr_enable_bit);
-	writel_relaxed(val, base + g->intr_cfg_reg);
+	writel(val, base + g->intr_cfg_reg);
 
 	set_bit(d->hwirq, pctrl->enabled_irqs);
 
@@ -761,6 +784,7 @@ static void msm_gpio_irq_unmask(struct irq_data *d)
 	raw_spin_lock_irqsave(&pctrl->lock, flags);
 
 	val = readl_relaxed(base + g->intr_cfg_reg);
+	val |= BIT(g->intr_raw_status_bit);
 	val |= BIT(g->intr_enable_bit);
 	writel_relaxed(val, base + g->intr_cfg_reg);
 
@@ -880,7 +904,7 @@ static int msm_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	} else {
 		BUG();
 	}
-	writel_relaxed(val, base + g->intr_cfg_reg);
+	writel(val, base + g->intr_cfg_reg);
 
 	if (test_bit(d->hwirq, pctrl->dual_edge_irqs))
 		msm_gpio_update_dual_edge_pos(pctrl, g, d);
@@ -902,13 +926,8 @@ static int msm_gpio_irq_set_wake(struct irq_data *d, unsigned int on)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct msm_pinctrl *pctrl = gpiochip_get_data(gc);
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&pctrl->lock, flags);
 
 	irq_set_irq_wake(pctrl->irq, on);
-
-	raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 
 	if (d->parent_data)
 		irq_chip_set_wake_parent(d, on);
@@ -1807,6 +1826,12 @@ static void msm_pinctrl_setup_pm_reset(struct msm_pinctrl *pctrl)
 }
 
 #ifdef CONFIG_PM
+#ifdef CONFIG_QCOM_SHOW_RESUME_IRQ
+extern int msm_show_resume_irq_mask;
+#else
+#define msm_show_resume_irq_mask 0
+#endif
+
 #ifdef CONFIG_HIBERNATION
 static bool hibernation;
 

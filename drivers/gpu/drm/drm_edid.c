@@ -2681,7 +2681,7 @@ static int drm_cvt_modes(struct drm_connector *connector,
 	const u8 empty[3] = { 0, 0, 0 };
 
 	for (i = 0; i < 4; i++) {
-		int uninitialized_var(width), height;
+		int width, height;
 		cvt = &(timing->data.other_data.data.cvt[i]);
 
 		if (!memcmp(cvt->code, empty, 3))
@@ -2689,6 +2689,8 @@ static int drm_cvt_modes(struct drm_connector *connector,
 
 		height = (cvt->code[0] + ((cvt->code[1] & 0xf0) << 4) + 1) * 2;
 		switch (cvt->code[1] & 0x0c) {
+		/* default - because compiler doesn't see that we've enumerated all cases */
+		default:
 		case 0x00:
 			width = height * 4 / 3;
 			break;
@@ -2948,31 +2950,8 @@ static u8 drm_match_cea_mode_clock_tolerance(const struct drm_display_mode *to_m
  * Return: The CEA Video ID (VIC) of the mode or 0 if it isn't a CEA-861
  * mode.
  */
-u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
+inline u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
 {
-	u8 vic;
-
-	if (!to_match->clock)
-		return 0;
-
-	for (vic = 1; vic < ARRAY_SIZE(edid_cea_modes); vic++) {
-		struct drm_display_mode cea_mode = edid_cea_modes[vic];
-		unsigned int clock1, clock2;
-
-		/* Check both 60Hz and 59.94Hz */
-		clock1 = cea_mode.clock;
-		clock2 = cea_mode_alternate_clock(&cea_mode);
-
-		if (KHZ2PICOS(to_match->clock) != KHZ2PICOS(clock1) &&
-		    KHZ2PICOS(to_match->clock) != KHZ2PICOS(clock2))
-			continue;
-
-		do {
-			if (drm_mode_equal_no_clocks_no_stereo(to_match, &cea_mode))
-				return vic;
-		} while (cea_mode_alternate_timings(vic, &cea_mode));
-	}
-
 	return 0;
 }
 EXPORT_SYMBOL(drm_match_cea_mode);

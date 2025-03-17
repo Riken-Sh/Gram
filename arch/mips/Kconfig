@@ -4,6 +4,7 @@ config MIPS
 	default y
 	select ARCH_BINFMT_ELF_STATE
 	select ARCH_CLOCKSOURCE_DATA
+	select ARCH_HAS_CPU_FINALIZE_INIT
 	select ARCH_DISCARD_MEMBLOCK
 	select ARCH_HAS_ELF_RANDOMIZE
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
@@ -1043,13 +1044,6 @@ source "arch/mips/paravirt/Kconfig"
 source "arch/mips/xilfpga/Kconfig"
 
 endmenu
-
-config RWSEM_GENERIC_SPINLOCK
-	bool
-	default y
-
-config RWSEM_XCHGADD_ALGORITHM
-	bool
 
 config GENERIC_HWEIGHT
 	bool

@@ -75,8 +75,8 @@ static bool snd_soc_dai_stream_valid(struct snd_soc_dai *dai, int stream)
 	else
 		codec_stream = &dai->driver->capture;
 
-	/* If the codec specifies any channels at all, it supports the stream */
-	return codec_stream->channels_min;
+	/* If the codec specifies any rate at all, it supports the stream. */
+	return codec_stream->rates;
 }
 
 /**
@@ -1279,6 +1279,8 @@ static void dpcm_be_reparent(struct snd_soc_pcm_runtime *fe,
 		return;
 
 	be_substream = snd_soc_dpcm_get_substream(be, stream);
+	if (!be_substream)
+		return;
 
 	list_for_each_entry(dpcm, &be->dpcm[stream].fe_clients, list_fe) {
 		if (dpcm->fe == fe)

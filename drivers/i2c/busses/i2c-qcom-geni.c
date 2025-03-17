@@ -765,6 +765,7 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 					      msgs[i].len);
 		}
 		ret = gi2c->err;
+		gi2c->err = 0;
 		if (gi2c->err) {
 			dev_err(gi2c->dev, "i2c error :%d\n", gi2c->err);
 			break;
@@ -931,7 +932,7 @@ static int geni_i2c_probe(struct platform_device *pdev)
 	init_completion(&gi2c->xfer);
 	platform_set_drvdata(pdev, gi2c);
 	ret = devm_request_irq(gi2c->dev, gi2c->irq, geni_i2c_irq,
-			       IRQF_TRIGGER_HIGH, "i2c_geni", gi2c);
+			       IRQF_TRIGGER_HIGH | IRQF_NOBALANCING, "i2c_geni", gi2c);
 	if (ret) {
 		dev_err(gi2c->dev, "Request_irq failed:%d: err:%d\n",
 				   gi2c->irq, ret);

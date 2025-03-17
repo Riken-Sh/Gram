@@ -33,6 +33,7 @@ struct ion_system_secure_heap {
 	bool destroy_heap;
 	struct list_head prefetch_list;
 	struct delayed_work prefetch_work;
+	struct workqueue_struct *prefetch_wq;
 };
 
 struct prefetch_info {
@@ -61,7 +62,8 @@ static bool is_cp_flag_present(unsigned long flags)
 			ION_FLAG_CP_BITSTREAM |
 			ION_FLAG_CP_PIXEL |
 			ION_FLAG_CP_NON_PIXEL |
-			ION_FLAG_CP_CAMERA);
+			ION_FLAG_CP_CAMERA |
+			ION_FLAG_CP_CAMERA_ENCODE);
 }
 
 static void ion_system_secure_heap_free(struct ion_buffer *buffer)
@@ -294,7 +296,8 @@ static int __ion_system_secure_heap_resize(struct ion_heap *heap, void *ptr,
 		goto out_free;
 	}
 	list_splice_tail_init(&items, &secure_heap->prefetch_list);
-	queue_delayed_work(system_unbound_wq, &secure_heap->prefetch_work,
+	queue_delayed_work(secure_heap->prefetch_wq,
+			   &secure_heap->prefetch_work,
 			   shrink ?  msecs_to_jiffies(SHRINK_DELAY) : 0);
 	spin_unlock_irqrestore(&secure_heap->work_lock, flags);
 
@@ -351,6 +354,33 @@ static int ion_system_secure_heap_shrink(struct ion_heap *heap, gfp_t gfp_mask,
 						gfp_mask, nr_to_scan);
 }
 
+static int ion_system_secure_heap_pm_freeze(struct ion_heap *heap)
+{
+	struct ion_system_secure_heap *secure_heap;
+	unsigned long count;
+	struct shrink_control sc = {
+		.gfp_mask = GFP_HIGHUSER,
+	};
+
+	secure_heap = container_of(heap, struct ion_system_secure_heap, heap);
+
+	/* Since userspace is frozen, no more requests will be queued */
+	cancel_delayed_work_sync(&secure_heap->prefetch_work);
+
+	count = heap->shrinker.count_objects(&heap->shrinker, &sc);
+	sc.nr_to_scan = count;
+	heap->shrinker.scan_objects(&heap->shrinker, &sc);
+
+	count = heap->shrinker.count_objects(&heap->shrinker, &sc);
+	if (count) {
+		pr_err("%s: Failed to free all objects - %ld remaining",
+		       __func__, count);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static struct ion_heap_ops system_secure_heap_ops = {
 	.allocate = ion_system_secure_heap_allocate,
 	.free = ion_system_secure_heap_free,
@@ -358,6 +388,9 @@ static struct ion_heap_ops system_secure_heap_ops = {
 	.unmap_kernel = ion_system_secure_heap_unmap_kernel,
 	.map_user = ion_system_secure_heap_map_user,
 	.shrink = ion_system_secure_heap_shrink,
+	.pm = {
+		.freeze = ion_system_secure_heap_pm_freeze,
+	}
 };
 
 struct ion_heap *ion_system_secure_heap_create(struct ion_platform_heap *unused)
@@ -376,6 +409,15 @@ struct ion_heap *ion_system_secure_heap_create(struct ion_platform_heap *unused)
 	INIT_LIST_HEAD(&heap->prefetch_list);
 	INIT_DELAYED_WORK(&heap->prefetch_work,
 			  ion_system_secure_heap_prefetch_work);
+
+	heap->prefetch_wq = alloc_workqueue("system_secure_prefetch_wq",
+					    WQ_UNBOUND | WQ_FREEZABLE, 0);
+	if (!heap->prefetch_wq) {
+		pr_err("Failed to create system secure prefetch workqueue\n");
+		kfree(heap);
+		return ERR_PTR(-ENOMEM);
+	}
+
 	return &heap->heap;
 }
 

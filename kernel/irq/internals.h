@@ -78,6 +78,7 @@ extern void __enable_irq(struct irq_desc *desc);
 extern int irq_startup(struct irq_desc *desc, bool resend, bool force);
 
 extern void irq_shutdown(struct irq_desc *desc);
+extern void irq_shutdown_and_deactivate(struct irq_desc *desc);
 extern void irq_enable(struct irq_desc *desc);
 extern void irq_disable(struct irq_desc *desc);
 extern void irq_percpu_enable(struct irq_desc *desc, unsigned int cpu);
@@ -91,6 +92,10 @@ static inline void irq_mark_irq(unsigned int irq) { }
 #else
 extern void irq_mark_irq(unsigned int irq);
 #endif
+
+extern int __irq_get_irqchip_state(struct irq_data *data,
+				   enum irqchip_irq_state which,
+				   bool *state);
 
 extern void init_kstat_irqs(struct irq_desc *desc, int node, int nr);
 
@@ -126,6 +131,7 @@ extern int irq_do_set_affinity(struct irq_data *data,
 
 #ifdef CONFIG_SMP
 extern int irq_setup_affinity(struct irq_desc *desc);
+extern void setup_perf_irq_locked(struct irq_desc *desc, unsigned int perf_flag);
 #else
 static inline int irq_setup_affinity(struct irq_desc *desc) { return 0; }
 #endif

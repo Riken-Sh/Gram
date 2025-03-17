@@ -942,7 +942,7 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 		return;
 	default:
 		/* Inform any processes that may be waiting for buffers */
-		wake_up(&q->done_wq);
+		wake_up_sync(&q->done_wq);
 		break;
 	}
 }
@@ -1571,7 +1571,7 @@ int vb2_wait_for_all_buffers(struct vb2_queue *q)
 	}
 
 	if (q->start_streaming_called)
-		wait_event(q->done_wq, !atomic_read(&q->owned_by_drv_count));
+		wait_event_interruptible(q->done_wq, !atomic_read(&q->owned_by_drv_count));
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vb2_wait_for_all_buffers);

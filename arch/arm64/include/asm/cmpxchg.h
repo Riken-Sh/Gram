@@ -18,7 +18,7 @@
 #ifndef __ASM_CMPXCHG_H
 #define __ASM_CMPXCHG_H
 
-#include <linux/bug.h>
+#include <linux/build_bug.h>
 
 #include <asm/atomic.h>
 #include <asm/barrier.h>
@@ -122,9 +122,9 @@ static __always_inline unsigned long __cmpxchg##sfx(volatile void *ptr,	\
 {									\
 	switch (size) {							\
 	case 1:								\
-		return __cmpxchg_case##sfx##_8(ptr, (u8)old, new);	\
+		return __cmpxchg_case##sfx##_8(ptr, old, new);		\
 	case 2:								\
-		return __cmpxchg_case##sfx##_16(ptr, (u16)old, new);	\
+		return __cmpxchg_case##sfx##_16(ptr, old, new);		\
 	case 4:								\
 		return __cmpxchg_case##sfx##_32(ptr, old, new);		\
 	case 8:								\

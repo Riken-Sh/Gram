@@ -7,4 +7,4 @@ mkdir -p "$PACKAGES_DIR"
 cd "$KERNEL_DIR"
 git clone --depth 1 https://github.com/Riken-Sh/Gram
 mv -f curtana/{.,}* "$KERNEL_DIR"
-docker run --rm -v "$PACKAGES_DIR:/buildd" -v "$KERNEL_DIR:/buildd/sources" quay.io/droidian/build-essential:101-arm64 /bin/bash /buildd/sources/curtana-docker/kernel.sh
+docker run --rm -v "$PACKAGES_DIR:/buildd" -v "$KERNEL_DIR:/buildd/sources" quay.io/droidian/build-essential:101-amd64 /bin/bash /buildd/sources/curtana-docker/kernel.sh
